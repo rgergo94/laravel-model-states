@@ -2,10 +2,12 @@
 
 namespace Spatie\ModelStates;
 
+use Illuminate\Auth\Access\Response;
+
 abstract class Transition
 {
-    public function canTransition(): bool
+    public function canTransition(): Response
     {
-        return true;
+        return Response::allow();
     }
 }

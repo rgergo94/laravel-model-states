@@ -2,6 +2,7 @@
 
 namespace Spatie\ModelStates;
 
+use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Database\Eloquent\Castable;
 use Illuminate\Support\Collection;
 use JsonSerializable;
@@ -22,7 +23,7 @@ abstract class State implements Castable, JsonSerializable
     private static array $stateMapping = [];
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param \Illuminate\Database\Eloquent\Model $model
      */
     public function __construct($model)
     {
@@ -36,7 +37,7 @@ abstract class State implements Castable, JsonSerializable
 
         $baseClass = $reflection->name;
 
-        while ($reflection && ! $reflection->isAbstract()) {
+        while ($reflection && !$reflection->isAbstract()) {
             $reflection = $reflection->getParentClass();
 
             $baseClass = $reflection->name;
@@ -63,7 +64,7 @@ abstract class State implements Castable, JsonSerializable
 
     public static function getStateMapping(): Collection
     {
-        if (! isset(self::$stateMapping[static::class])) {
+        if (!isset(self::$stateMapping[static::class])) {
             self::$stateMapping[static::class] = static::resolveStateMapping();
         }
 
@@ -81,7 +82,7 @@ abstract class State implements Castable, JsonSerializable
         }
 
         foreach (static::getStateMapping() as $stateClass) {
-            if (! class_exists($stateClass)) {
+            if (!class_exists($stateClass)) {
                 continue;
             }
 
@@ -98,15 +99,15 @@ abstract class State implements Castable, JsonSerializable
     }
 
     /**
-     * @param  string  $name
-     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param string $name
+     * @param \Illuminate\Database\Eloquent\Model $model
      * @return  State
      */
     public static function make(string $name, $model): State
     {
         $stateClass = static::resolveStateClass($name);
 
-        if (! is_subclass_of($stateClass, static::class)) {
+        if (!is_subclass_of($stateClass, static::class)) {
             throw InvalidConfig::doesNotExtendBaseClass($name, static::class);
         }
 
@@ -142,8 +143,8 @@ abstract class State implements Castable, JsonSerializable
     }
 
     /**
-     * @param  string|State  $newState
-     * @param  mixed  ...$transitionArgs
+     * @param string|State $newState
+     * @param mixed ...$transitionArgs
      * @return  \Illuminate\Database\Eloquent\Model
      */
     public function transitionTo($newState, ...$transitionArgs)
@@ -154,7 +155,7 @@ abstract class State implements Castable, JsonSerializable
 
         $to = $newState::getMorphClass();
 
-        if (! $this->stateConfig->isTransitionAllowed($from, $to)) {
+        if (!$this->stateConfig->isTransitionAllowed($from, $to)) {
             throw CouldNotPerformTransition::notFound($from, $to, $this->model);
         }
 
@@ -169,13 +170,13 @@ abstract class State implements Castable, JsonSerializable
     }
 
     /**
-     * @param  Transition  $transition
+     * @param Transition $transition
      * @return  \Illuminate\Database\Eloquent\Model
      */
     public function transition(Transition $transition)
     {
         if (method_exists($transition, 'canTransition')) {
-            if (! $transition->canTransition()) {
+            if ($transition->canTransition()->denied()) {
                 throw CouldNotPerformTransition::notAllowed($this->model, $transition);
             }
         }
@@ -196,11 +197,11 @@ abstract class State implements Castable, JsonSerializable
     public function transitionableStates(...$transitionArgs): array
     {
         return collect($this->stateConfig->transitionableStates(static::getMorphClass()))->reject(function ($state) use ($transitionArgs) {
-            return ! $this->canTransitionTo($state, ...$transitionArgs);
+            return $this->canTransitionTo($state, ...$transitionArgs)->denied();
         })->toArray();
     }
 
-    public function canTransitionTo($newState, ...$transitionArgs): bool
+    public function canTransitionTo($newState, ...$transitionArgs): Response
     {
         $newState = $this->resolveStateObject($newState);
 
@@ -208,8 +209,8 @@ abstract class State implements Castable, JsonSerializable
 
         $to = $newState::getMorphClass();
 
-        if (! $this->stateConfig->isTransitionAllowed($from, $to)) {
-            return false;
+        if (!$this->stateConfig->isTransitionAllowed($from, $to)) {
+            return Response::deny('Transition not allowed');
         }
 
         $transition = $this->resolveTransitionClass(
@@ -223,7 +224,7 @@ abstract class State implements Castable, JsonSerializable
             return $transition->canTransition();
         }
 
-        return true;
+        return Response::allow();
     }
 
     public function getValue(): string
@@ -270,9 +271,10 @@ abstract class State implements Castable, JsonSerializable
     private function resolveTransitionClass(
         string $from,
         string $to,
-        State $newState,
-        ...$transitionArgs
-    ): Transition {
+        State  $newState,
+               ...$transitionArgs
+    ): Transition
+    {
         $transitionClass = $this->stateConfig->resolveTransitionClass($from, $to);
 
         if ($transitionClass === null) {
@@ -312,7 +314,7 @@ abstract class State implements Castable, JsonSerializable
             /** @var \Spatie\ModelStates\State|mixed $stateClass */
             $stateClass = $namespace . '\\' . $className;
 
-            if (! is_subclass_of($stateClass, $stateConfig->baseStateClass)) {
+            if (!is_subclass_of($stateClass, $stateConfig->baseStateClass)) {
                 continue;
             }
 
